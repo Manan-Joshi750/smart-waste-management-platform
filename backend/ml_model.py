@@ -1,40 +1,51 @@
 import io
 import random
 from PIL import Image
-# import torch  # Uncomment when you have your trained weights
-# import torchvision.transforms as transforms
+from ultralytics import YOLO
+
+# Load the YOLOv8 nano model (it will auto-download 'yolov8n.pt' on first run)
+model = YOLO('yolov8n.pt')
 
 def process_and_classify_image(image_bytes: bytes):
     """
-    Receives raw image bytes from the FastAPI endpoint.
-    Prepares the image for the AI model and returns the prediction.
+    Receives raw image bytes, runs real YOLOv8 AI inference, 
+    and maps the detected objects to project-specific waste categories.
     """
-    # 1. Open and validate the image using Pillow
     try:
-        image = Image.open(io.BytesIO(image_bytes))
-        # Ensure image is in RGB format (removes alpha channels from PNGs)
-        image = image.convert("RGB")
+        # 1. Open the image
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     except Exception as e:
         raise ValueError(f"Invalid image file: {str(e)}")
 
-    # 2. PyTorch Preprocessing Pipeline (Ready for your real model)
-    # transform = transforms.Compose([
-    #     transforms.Resize((224, 224)),
-    #     transforms.ToTensor(),
-    #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    # ])
-    # tensor_img = transform(image).unsqueeze(0)
+    # 2. Run real AI inference
+    results = model(image)
     
-    # 3. Model Inference (Ready for your real model)
-    # model = torch.load("waste_classifier.pt")
-    # model.eval()
-    # with torch.no_grad():
-    #     output = model(tensor_img)
-    #     category_index = torch.argmax(output).item()
+    # 3. Extract detected object names
+    detected_classes = []
+    for result in results:
+        for box in result.boxes:
+            class_id = int(box.cls[0])
+            class_name = model.names[class_id]
+            detected_classes.append(class_name)
+
+    # 4. Map real AI detections to our Smart Waste categories
+    # YOLO knows 'bottle', 'cup', 'apple', 'banana', etc.
+    plastic_indicators = ['bottle', 'cup', 'wine glass']
+    organic_indicators = ['apple', 'banana', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'sandwich']
     
-    # 4. Simulated AI Output (Remove this block when you uncomment the above)
-    categories = ["Normal", "Plastic Overflow", "Organic Overflow", "Hazardous"]
-    predicted_status = random.choice(categories)
-    predicted_volume = f"{random.randint(10, 100)}%"
+    predicted_status = "Normal" # Default if nothing dangerous is found
+    
+    for item in detected_classes:
+        if item in plastic_indicators:
+            predicted_status = "Plastic Overflow"
+            break  # Highest priority, stop checking
+        elif item in organic_indicators:
+            predicted_status = "Organic Overflow"
+            
+    # Calculate a mock volume based on the number of objects detected (for realism)
+    base_volume = random.randint(20, 50)
+    extra_volume = len(detected_classes) * 15
+    final_volume = min(100, base_volume + extra_volume)
+    predicted_volume = f"{final_volume}%"
     
     return predicted_status, predicted_volume

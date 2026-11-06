@@ -5,8 +5,16 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine';
 
 // Define color markers mapping to priority levels
-const redIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
-const yellowIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+const redIcon = new L.Icon({ 
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', 
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', 
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] 
+});
+const greenIcon = new L.Icon({ 
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', 
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', 
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] 
+});
 
 function LogisticsRouting({ bins, onRouteCalculated }) {
   const map = useMap();
@@ -14,11 +22,9 @@ function LogisticsRouting({ bins, onRouteCalculated }) {
   useEffect(() => {
     if (!map) return;
     
-    // Only route trucks through high-priority markers (Overflow or Hazardous)
-    const priorityBins = bins.filter(b => 
-      b.status.toLowerCase().includes('overflow') || 
-      b.status.toLowerCase().includes('hazardous')
-    );
+    // STRICT FILTER: Only route trucks through Critical Overflow bins
+    // FLEXIBLE FILTER: Matches the Pie Chart logic exactly
+    const priorityBins = bins.filter(b => b.status.toLowerCase().includes('overflow'));
     
     if (priorityBins.length < 2) {
       onRouteCalculated(null);
@@ -68,11 +74,11 @@ export default function WasteMap({ bins, onBinDeleted, onRouteCalculated }) {
 
   // Helper function to assign color/icon based on AI status
   const getMarkerConfig = (status) => {
-    const s = status.toLowerCase();
-    if (s.includes('overflow') || s.includes('hazardous')) {
+  // Check for the word 'overflow' regardless of exact phrasing
+    if (status.toLowerCase().includes('overflow')) {
       return { icon: redIcon, color: '#ef4444' }; // Red for High Priority
     }
-    return { icon: yellowIcon, color: '#eab308' }; // Yellow for Normal/Pending
+    return { icon: greenIcon, color: '#10b981' }; // Green for Normal/Safe
   };
 
   return (
