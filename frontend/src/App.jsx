@@ -14,7 +14,25 @@ function App() {
       .catch(error => console.error(error));
   };
 
-  useEffect(() => { fetchBins(); }, []);
+  useEffect(() => { 
+    // 1. Initial fetch on load
+    fetchBins(); 
+
+    // 2. Connect to the WebSocket
+    const ws = new WebSocket('ws://127.0.0.1:8000/ws');
+    
+    ws.onmessage = (event) => {
+      // 3. Listen for the backend broadcast. If it says update, instantly re-fetch
+      if (event.data === 'update_bins') {
+        fetchBins();
+      }
+    };
+
+    // Cleanup on unmount
+    return () => {
+      ws.close();
+    };
+  }, []);
 
   const overflowCount = bins.filter(b => b.status.toLowerCase().includes('overflow')).length;
   const chartData = [

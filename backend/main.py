@@ -1,6 +1,6 @@
 from ml_model import process_and_classify_image
 from bson import ObjectId
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
@@ -16,6 +16,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- WebSocket Connection Manager ---
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_text(message)
+
+manager = ConnectionManager()
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive
+            data = await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+# ------------------------------------
+
 @app.get("/")
 def read_root():
     return {"status": "Active", "message": "Waste Management API is running"}
@@ -30,23 +59,19 @@ def get_all_bins():
         formatted_bins.append(bin_doc)
     return {"status": "success", "count": len(formatted_bins), "data": formatted_bins}
 
-# Route: Receive Image + Location, Run AI (Placeholder), Save to MongoDB
 @app.post("/api/bins", status_code=201)
 async def create_bin_report(
     latitude: float = Form(...),
     longitude: float = Form(...),
     file: UploadFile = File(...)
 ):
-    # 1. Read the uploaded file into memory
     image_bytes = await file.read()
     
-    # 2. Pass the bytes to the AI model
     try:
         ai_status, ai_volume = process_and_classify_image(image_bytes)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     
-    # 3. Save the classified data to MongoDB
     report_dict = {
         "latitude": latitude,
         "longitude": longitude,
@@ -58,15 +83,19 @@ async def create_bin_report(
     result = bins_collection.insert_one(report_dict)
     
     if result.inserted_id:
+        # Broadcast to all connected frontends that data has changed
+        await manager.broadcast("update_bins")
         return {"status": "success", "message": "Image analyzed and saved successfully"}
     
     raise HTTPException(status_code=500, detail="Failed to save report")
 
 @app.delete("/api/bins/{bin_id}")
-def delete_bin(bin_id: str):
+async def delete_bin(bin_id: str):
     try:
         result = bins_collection.delete_one({"_id": ObjectId(bin_id)})
         if result.deleted_count == 1:
+            # Broadcast to all connected frontends that a bin was cleaned
+            await manager.broadcast("update_bins")
             return {"status": "success", "message": "Bin marked as cleaned and removed"}
         raise HTTPException(status_code=404, detail="Bin not found")
     except Exception:
