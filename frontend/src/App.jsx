@@ -6,22 +6,28 @@ import WasteForm from './components/WasteForm';
 function App() {
   const [bins, setBins] = useState([]);
   const [routeInfo, setRouteInfo] = useState(null);
-  const [viewMode, setViewMode] = useState('command'); // 'command' or 'driver'
+  const [viewMode, setViewMode] = useState('command'); // 'command', 'driver', 'analytics'
+  const [analytics, setAnalytics] = useState({ average_resolution_time: 0, total_cleaned: 0, heatmap_data: [] });
 
-  const fetchBins = () => {
+  const fetchData = () => {
     fetch('http://127.0.0.1:8000/api/bins')
       .then(response => response.json())
       .then(data => setBins(data.data || data))
       .catch(error => console.error(error));
+      
+    fetch('http://127.0.0.1:8000/api/analytics')
+      .then(response => response.json())
+      .then(data => setAnalytics(data))
+      .catch(error => console.error(error));
   };
 
   useEffect(() => { 
-    fetchBins(); 
+    fetchData(); 
     const ws = new WebSocket('ws://127.0.0.1:8000/ws');
     
     ws.onmessage = (event) => {
       if (event.data === 'update_bins') {
-        fetchBins();
+        fetchData();
       }
     };
 
@@ -38,32 +44,57 @@ function App() {
     <div className="app-container">
       <header className="app-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1>♻️ Smart Waste {viewMode === 'command' ? 'Command Center' : 'Driver Navigation'}</h1>
-          <p>{viewMode === 'command' ? 'Live Logistics & Municipal Tracking Dashboard' : 'Mobile-Optimized Route View'}</p>
+          <h1>♻️ Smart Waste {viewMode === 'command' ? 'Command Center' : viewMode === 'driver' ? 'Driver Navigation' : 'Historical Analytics'}</h1>
+          <p>{viewMode === 'command' ? 'Live Logistics & Municipal Tracking Dashboard' : viewMode === 'driver' ? 'Mobile-Optimized Route View' : 'Predictive Heatmaps & Performance Metrics'}</p>
         </div>
-        <button 
-          onClick={() => setViewMode(viewMode === 'command' ? 'driver' : 'command')}
-          style={{ 
-            padding: '10px 20px', 
-            backgroundColor: viewMode === 'command' ? '#3b82f6' : '#475569', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '8px', 
-            cursor: 'pointer', 
-            fontWeight: 'bold',
-            fontSize: '1rem',
-            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-          }}
-        >
-          Switch to {viewMode === 'command' ? 'Driver View 🚚' : 'Command Center 💻'}
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button 
+            onClick={() => setViewMode('command')}
+            style={{ padding: '8px 16px', backgroundColor: viewMode === 'command' ? '#3b82f6' : '#475569', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            Command Center 💻
+          </button>
+          <button 
+            onClick={() => setViewMode('driver')}
+            style={{ padding: '8px 16px', backgroundColor: viewMode === 'driver' ? '#3b82f6' : '#475569', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            Driver View 🚚
+          </button>
+          <button 
+            onClick={() => setViewMode('analytics')}
+            style={{ padding: '8px 16px', backgroundColor: viewMode === 'analytics' ? '#8b5cf6' : '#475569', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            Analytics 📊
+          </button>
+        </div>
       </header>
 
-      {viewMode === 'command' ? (
-        /* --- COMMAND CENTER VIEW (DESKTOP) --- */
+      {viewMode === 'analytics' ? (
+         <div className="dashboard-grid">
+           <div className="sidebar">
+             <div className="card" style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc' }}>
+                <h3 style={{ color: '#475569', marginTop: 0, marginBottom: '10px', fontSize: '1rem', textTransform: 'uppercase' }}>Avg Resolution Time</h3>
+                <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#8b5cf6' }}>
+                  {analytics.average_resolution_time} <span style={{ fontSize: '1.2rem', color: '#64748b' }}>min</span>
+                </div>
+             </div>
+             <div className="card" style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc' }}>
+                <h3 style={{ color: '#475569', marginTop: 0, marginBottom: '10px', fontSize: '1rem', textTransform: 'uppercase' }}>Total Overflows Cleared</h3>
+                <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#10b981' }}>{analytics.total_cleaned}</div>
+             </div>
+             <div className="card" style={{ padding: '20px' }}>
+                <h3 style={{ marginTop: 0, color: '#1e293b' }}>Predictive Insights</h3>
+                <p style={{ color: '#475569', lineHeight: '1.6' }}>The map's thermal layer highlights historical overflow frequency. Red zones indicate chronic waste buildup, mapping exactly where the municipality should permanently allocate more bins.</p>
+             </div>
+           </div>
+           <div className="card map-section">
+              <WasteMap bins={[]} heatmapData={analytics.heatmap_data} showHeatmap={true} />
+           </div>
+         </div>
+      ) : viewMode === 'command' ? (
         <div className="dashboard-grid">
           <div className="sidebar">
-            <div className="card"><WasteForm onBinAdded={fetchBins} /></div>
+            <div className="card"><WasteForm onBinAdded={fetchData} /></div>
             
             <div className="card">
               <h3 style={{ marginTop: 0, color: '#1e293b' }}>System Analytics</h3>
@@ -92,64 +123,57 @@ function App() {
                     <span className="route-value">{routeInfo.time} min</span>
                   </div>
                 </div>
-
-                <div className="card" style={{ padding: '16px', maxHeight: '300px', overflowY: 'auto' }}>
-                  <h4 style={{ marginTop: 0, marginBottom: '12px', color: '#1e293b' }}>Navigation Steps</h4>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                    {routeInfo.steps && routeInfo.steps.map((step, index) => (
-                      <li key={index} style={{ padding: '10px 0', borderBottom: index !== routeInfo.steps.length - 1 ? '1px solid #e2e8f0' : 'none', display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#475569' }}>
-                        <span>{step.text}</span>
-                        <span style={{ fontWeight: '600', color: '#3b82f6', marginLeft: '12px', whiteSpace: 'nowrap' }}>{step.distance}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                
+                {/* FIXED: Turn-by-turn route instructions mapping */}
+                {routeInfo.steps && routeInfo.steps.length > 0 && (
+                  <div className="card route-steps-container" style={{ padding: '15px', maxHeight: '250px', overflowY: 'auto' }}>
+                    <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#1e293b', fontSize: '0.9rem' }}>Route Details</h4>
+                    <ul style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
+                      {routeInfo.steps.map((step, index) => {
+                        // Skip empty text entries
+                        if (!step.text) return null;
+                        return (
+                          <li key={index} style={{ padding: '8px 0', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                            <span style={{ color: '#475569', paddingRight: '15px' }}>{step.text}</span>
+                            <span style={{ fontWeight: 'bold', color: '#3b82f6', whiteSpace: 'nowrap' }}>
+                              {step.distance > 1000 ? `${(step.distance / 1000).toFixed(1)} km` : `${Math.round(step.distance)} m`}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           <div className="card map-section">
-            <WasteMap bins={bins} onBinDeleted={fetchBins} onRouteCalculated={setRouteInfo} />
+            <WasteMap bins={bins} onBinDeleted={fetchData} onRouteCalculated={setRouteInfo} />
           </div>
         </div>
       ) : (
-        /* --- DRIVER VIEW (MOBILE OPTIMIZED) --- */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '800px', margin: '0 auto' }}>
-          
           {routeInfo ? (
-            <div style={{ backgroundColor: '#1e293b', color: 'white', padding: '20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}>
+            <div style={{ backgroundColor: '#1e293b', color: 'white', padding: '20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <span style={{ display: 'block', fontSize: '0.875rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Active Mission</span>
+                <span style={{ display: 'block', fontSize: '0.875rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Active Mission</span>
                 <span style={{ fontSize: '2rem', fontWeight: 'bold', color: '#38bdf8' }}>{routeInfo.distance} km</span>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <span style={{ display: 'block', fontSize: '0.875rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Est. Time</span>
+                <span style={{ display: 'block', fontSize: '0.875rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Est. Time</span>
                 <span style={{ fontSize: '2rem', fontWeight: 'bold', color: '#34d399' }}>{routeInfo.time} min</span>
               </div>
             </div>
           ) : (
             <div style={{ backgroundColor: '#d1fae5', color: '#065f46', padding: '20px', borderRadius: '12px', textAlign: 'center', fontWeight: 'bold', fontSize: '1.2rem' }}>
-              🎉 All critical zones cleared. No active routes.
+              🎉 All critical zones cleared.
             </div>
           )}
 
           <div className="card map-section" style={{ height: '50vh', minHeight: '400px', padding: 0, borderRadius: '12px', overflow: 'hidden' }}>
-            <WasteMap bins={bins} onBinDeleted={fetchBins} onRouteCalculated={setRouteInfo} />
+            <WasteMap bins={bins} onBinDeleted={fetchData} onRouteCalculated={setRouteInfo} />
           </div>
-
-          {routeInfo && (
-            <div className="card" style={{ padding: '20px', borderRadius: '12px' }}>
-              <h3 style={{ marginTop: 0, marginBottom: '20px', fontSize: '1.5rem', color: '#1e293b' }}>Turn-by-Turn Directions</h3>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {routeInfo.steps && routeInfo.steps.map((step, index) => (
-                  <li key={index} style={{ padding: '16px 0', borderBottom: index !== routeInfo.steps.length - 1 ? '1px solid #e2e8f0' : 'none', display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', color: '#334155' }}>
-                    <span>{step.text}</span>
-                    <span style={{ fontWeight: 'bold', color: '#3b82f6', marginLeft: '16px', whiteSpace: 'nowrap' }}>{step.distance}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       )}
     </div>

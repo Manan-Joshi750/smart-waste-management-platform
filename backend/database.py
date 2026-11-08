@@ -19,7 +19,8 @@ client = MongoClient(MONGO_URI, tlsAllowInvalidCertificates=True)
 # 4. Create/Connect to a database specifically for this project
 db = client.smart_waste_db
 
-# 5. Create/Connect to the collection
+# 5. Create/Connect to the collections
 bins_collection = db.bins
+history_collection = db.history # NEW: Collection for archived/cleaned bins
 
 print("MongoDB Atlas Cloud connected successfully!")

@@ -4,7 +4,8 @@ from fastapi import FastAPI, HTTPException, File, UploadFile, Form, WebSocket, W
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
-from database import bins_collection
+from database import bins_collection, history_collection
+from datetime import datetime, timezone
 
 app = FastAPI(title="Smart Waste API")
 
@@ -39,7 +40,6 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Keep connection alive
             data = await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
@@ -77,13 +77,13 @@ async def create_bin_report(
         "longitude": longitude,
         "status": ai_status,
         "volume": ai_volume,
-        "filename": file.filename
+        "filename": file.filename,
+        "reported_at": datetime.now(timezone.utc).isoformat() # NEW: Record creation time
     }
     
     result = bins_collection.insert_one(report_dict)
     
     if result.inserted_id:
-        # Broadcast to all connected frontends that data has changed
         await manager.broadcast("update_bins")
         return {"status": "success", "message": "Image analyzed and saved successfully"}
     
@@ -92,11 +92,65 @@ async def create_bin_report(
 @app.delete("/api/bins/{bin_id}")
 async def delete_bin(bin_id: str):
     try:
+        # Fetch the bin before deleting it
+        bin_doc = bins_collection.find_one({"_id": ObjectId(bin_id)})
+        if not bin_doc:
+            raise HTTPException(status_code=404, detail="Bin not found")
+
+        # Calculate resolution time
+        cleaned_time = datetime.now(timezone.utc)
+        reported_time_str = bin_doc.get("reported_at")
+        resolution_minutes = 0
+        
+        if reported_time_str:
+            try:
+                reported_time = datetime.fromisoformat(reported_time_str)
+                resolution_minutes = int((cleaned_time - reported_time).total_seconds() / 60)
+            except ValueError:
+                pass
+
+        # Archive to history collection
+        history_doc = {
+            "latitude": bin_doc["latitude"],
+            "longitude": bin_doc["longitude"],
+            "status": bin_doc["status"],
+            "reported_at": reported_time_str,
+            "cleaned_at": cleaned_time.isoformat(),
+            "resolution_time_minutes": resolution_minutes
+        }
+        history_collection.insert_one(history_doc)
+
+        # Remove from active bins
         result = bins_collection.delete_one({"_id": ObjectId(bin_id)})
         if result.deleted_count == 1:
-            # Broadcast to all connected frontends that a bin was cleaned
             await manager.broadcast("update_bins")
-            return {"status": "success", "message": "Bin marked as cleaned and removed"}
-        raise HTTPException(status_code=404, detail="Bin not found")
+            return {"status": "success", "message": "Bin archived and removed from active map"}
+            
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid Bin ID format")
+
+# NEW: Analytics Endpoint for Heatmap and Metrics
+@app.get("/api/analytics")
+def get_analytics():
+    history = list(history_collection.find())
+    total_time = 0
+    valid_records = 0
+    heatmap_data = []
+    
+    for doc in history:
+        # Tally times for average calculation
+        if doc.get("resolution_time_minutes") is not None:
+            total_time += doc["resolution_time_minutes"]
+            valid_records += 1
+            
+        # Format [lat, lng, intensity] for Leaflet heatmap
+        heatmap_data.append([doc["latitude"], doc["longitude"], 1])
+        
+    avg_time = round(total_time / valid_records) if valid_records > 0 else 0
+    
+    return {
+        "status": "success", 
+        "average_resolution_time": avg_time,
+        "total_cleaned": len(history),
+        "heatmap_data": heatmap_data
+    }
