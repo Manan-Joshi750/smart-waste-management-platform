@@ -7,10 +7,10 @@ function App() {
   const [bins, setBins] = useState([]);
   const [routeInfo, setRouteInfo] = useState(null);
   const [viewMode, setViewMode] = useState('command'); 
-  const [analytics, setAnalytics] = useState({ average_resolution_time: 0, total_cleaned: 0, heatmap_data: [] });
+  const [analytics, setAnalytics] = useState({ average_resolution_time: 0, total_cleaned: 0, heatmap_data: [], last_cleared: null });
   
   const [isNavigating, setIsNavigating] = useState(false);
-  const [navMode, setNavMode] = useState('simulate'); // 'simulate' or 'real'
+  const [navMode, setNavMode] = useState('simulate'); 
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const stepListRef = useRef(null);
 
@@ -67,7 +67,7 @@ function App() {
 
       {viewMode === 'analytics' ? (
          <div className="dashboard-grid">
-           <div className="sidebar">
+           <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
              <div className="card" style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc' }}>
                 <h3 style={{ color: '#475569', marginTop: 0, marginBottom: '10px', fontSize: '1rem', textTransform: 'uppercase' }}>Avg Resolution Time</h3>
                 <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#8b5cf6' }}>{analytics.average_resolution_time} <span style={{ fontSize: '1.2rem', color: '#64748b' }}>min</span></div>
@@ -76,6 +76,17 @@ function App() {
                 <h3 style={{ color: '#475569', marginTop: 0, marginBottom: '10px', fontSize: '1rem', textTransform: 'uppercase' }}>Total Overflows Cleared</h3>
                 <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#10b981' }}>{analytics.total_cleaned}</div>
              </div>
+             
+             {/* ---> HERE IS YOUR TIMESTAMP CARD <--- */}
+             <div className="card" style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc' }}>
+                <h3 style={{ color: '#475569', marginTop: 0, marginBottom: '10px', fontSize: '1rem', textTransform: 'uppercase' }}>Latest Clearance</h3>
+                <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#f59e0b' }}>
+                  {analytics.last_cleared 
+                    ? new Date(analytics.last_cleared).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) 
+                    : 'No data yet'}
+                </div>
+             </div>
+
            </div>
            <div className="card map-section">
               <WasteMap bins={[]} heatmapData={analytics.heatmap_data} showHeatmap={true} />
@@ -111,8 +122,6 @@ function App() {
                     <span className="route-value">{routeInfo.time} min</span>
                   </div>
                 </div>
-                
-                {/* RESTORED: Turn-by-turn route instructions for Command Center */}
                 {routeInfo.steps && routeInfo.steps.length > 0 && (
                   <div className="card route-steps-container" style={{ padding: '15px', maxHeight: '250px', overflowY: 'auto' }}>
                     <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#1e293b', fontSize: '0.9rem' }}>Route Details</h4>
@@ -131,8 +140,6 @@ function App() {
                     </ul>
                   </div>
                 )}
-                {/* END RESTORED BLOCK */}
-
               </div>
             )}
           </div>
@@ -156,6 +163,8 @@ function App() {
           </div>
 
           <div className="sidebar" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            
+            {/* ---> DRIVER BUTTONS ARE ONLY SHOWN IF routeInfo EXISTS <--- */}
             {routeInfo ? (
               <>
                 <div style={{ backgroundColor: '#1e293b', color: 'white', padding: '20px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
