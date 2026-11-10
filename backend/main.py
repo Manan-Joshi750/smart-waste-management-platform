@@ -68,7 +68,21 @@ async def create_bin_report(
     image_bytes = await file.read()
     
     try:
-        ai_status, ai_volume = process_and_classify_image(image_bytes)
+        # 1. Get the new dictionary response from your TensorFlow AI
+        ai_result = process_and_classify_image(image_bytes)
+        
+        # 2. Check for AI processing errors
+        if ai_result.get("status") == "error":
+            raise ValueError(ai_result.get("message", "AI processing failed"))
+            
+        # 3. Extract the category (normal or overflow)
+        ai_status = ai_result.get("detected_category")
+        
+        # 4. Format the volume string to include the AI's confidence score
+        # This keeps the database structure identical so the frontend doesn't break
+        confidence = ai_result.get("confidence", 0)
+        ai_volume = f"High ({confidence}%)" if ai_status == "overflow" else f"Low ({confidence}%)"
+        
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     
