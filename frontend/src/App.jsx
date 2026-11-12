@@ -85,6 +85,20 @@ function App() {
     setIsNavigating(true);
   };
 
+  // Secure Delete Function specifically for Admins
+  const handleMarkCleaned = (binId) => {
+    if (userRole !== 'admin') return;
+    fetch(`http://127.0.0.1:8000/api/bins/${binId}`, {
+      method: 'DELETE'
+    })
+    .then(response => {
+      if (response.ok) {
+        fetchData();
+      }
+    })
+    .catch(err => console.error("Error clearing bin:", err));
+  };
+
   // Prevent citizens from deleting bins
   const handleCitizenDeleteAttempt = () => {
     alert("🔒 Access Denied: Only authenticated Municipal Admins or Drivers can mark bins as resolved.");
@@ -234,7 +248,12 @@ function App() {
             )}
           </div>
           <div className="card map-section">
-            <WasteMap bins={bins} onBinDeleted={fetchData} onRouteCalculated={setRouteInfo} />
+            <WasteMap 
+               bins={bins} 
+               onBinDeleted={handleMarkCleaned} 
+               onRouteCalculated={setRouteInfo} 
+               userRole={userRole} 
+            />
           </div>
         </div>
 
@@ -249,8 +268,11 @@ function App() {
             <div className="card"><WasteForm onBinAdded={fetchData} /></div>
           </div>
           <div className="card map-section">
-            {/* Citizens pass a dummy function so they get rejected if they try to delete a marker */}
-            <WasteMap bins={bins} onBinDeleted={handleCitizenDeleteAttempt} />
+            <WasteMap 
+               bins={bins} 
+               onBinDeleted={handleCitizenDeleteAttempt} 
+               userRole={userRole}
+            />
           </div>
         </div>
 
@@ -267,6 +289,7 @@ function App() {
                navMode={navMode}
                routeInfo={routeInfo}
                onStepChange={setActiveStepIndex}
+               userRole={userRole}
             />
           </div>
 

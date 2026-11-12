@@ -223,6 +223,16 @@ const WasteMapWrapper = (props) => {
                       <div style={{ textAlign: 'center' }}>
                       <strong>Status:</strong> {bin.status}<br/>
                       <strong>Volume:</strong> {bin.volume}<br/>
+                      
+                      {/* ONLY SHOW BUTTON IF USER IS ADMIN */}
+                      {props.userRole === 'admin' && (
+                        <button 
+                          onClick={() => props.onBinDeleted && props.onBinDeleted(bin.id)}
+                          style={{ marginTop: '10px', padding: '6px 12px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', width: '100%' }}
+                        >
+                          ✓ Mark Cleaned
+                        </button>
+                      )}
                       </div>
                   </Popup>
                 </Marker>
