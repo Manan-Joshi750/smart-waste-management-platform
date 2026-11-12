@@ -79,7 +79,6 @@ async def create_bin_report(
         ai_status = ai_result.get("detected_category")
         
         # 4. Format the volume string to include the AI's confidence score
-        # This keeps the database structure identical so the frontend doesn't break
         confidence = ai_result.get("confidence", 0)
         ai_volume = f"High ({confidence}%)" if ai_status == "overflow" else f"Low ({confidence}%)"
         
@@ -146,6 +145,7 @@ def get_analytics():
     valid_records = 0
     heatmap_data = []
     last_cleared_time = None
+    clearance_history = []
     
     if history:
         sorted_history = sorted(
@@ -155,6 +155,14 @@ def get_analytics():
         )
         if sorted_history:
             last_cleared_time = sorted_history[0]["cleaned_at"]
+            
+        for doc in sorted_history:
+            clearance_history.append({
+                "id": str(doc.get("_id", ObjectId())),
+                "cleaned_at": doc.get("cleaned_at"),
+                "latitude": doc.get("latitude"),
+                "longitude": doc.get("longitude")
+            })
 
     for doc in history:
         if doc.get("resolution_time_minutes") is not None:
@@ -170,5 +178,6 @@ def get_analytics():
         "average_resolution_time": avg_time,
         "total_cleaned": len(history),
         "heatmap_data": heatmap_data,
-        "last_cleared": last_cleared_time
+        "last_cleared": last_cleared_time,
+        "clearance_history": clearance_history
     }

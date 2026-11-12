@@ -15,7 +15,8 @@ function App() {
   const [bins, setBins] = useState([]);
   const [routeInfo, setRouteInfo] = useState(null);
   const [viewMode, setViewMode] = useState('command'); 
-  const [analytics, setAnalytics] = useState({ average_resolution_time: 0, total_cleaned: 0, heatmap_data: [], last_cleared: null });
+  const [analytics, setAnalytics] = useState({ average_resolution_time: 0, total_cleaned: 0, heatmap_data: [], last_cleared: null, clearance_history: [] });
+  const [selectedMonth, setSelectedMonth] = useState('');
   
   const [isNavigating, setIsNavigating] = useState(false);
   const [navMode, setNavMode] = useState('simulate'); 
@@ -110,6 +111,24 @@ function App() {
     { name: 'Critical Overflow', value: overflowCount, color: '#ef4444' }
   ];
 
+  // Logic for the clearance history dropdown filter
+  const getUniqueMonths = () => {
+    if (!analytics.clearance_history) return [];
+    const months = new Set(analytics.clearance_history.map(record => {
+      const d = new Date(record.cleaned_at);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }));
+    return Array.from(months).sort().reverse();
+  };
+
+  const uniqueMonths = getUniqueMonths();
+  const filteredHistory = analytics.clearance_history?.filter(record => {
+    if (!selectedMonth) return true;
+    const d = new Date(record.cleaned_at);
+    const recordMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return recordMonth === selectedMonth;
+  }) || [];
+
   // ==========================================
   // LOGIN SCREEN (Gateway)
   // ==========================================
@@ -185,10 +204,37 @@ function App() {
                 <h3 style={{ color: '#475569', marginTop: 0, marginBottom: '10px', fontSize: '1rem', textTransform: 'uppercase' }}>Total Overflows Cleared</h3>
                 <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#10b981' }}>{analytics.total_cleaned}</div>
              </div>
-             <div className="card" style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc' }}>
-                <h3 style={{ color: '#475569', marginTop: 0, marginBottom: '10px', fontSize: '1rem', textTransform: 'uppercase' }}>Latest Clearance</h3>
-                <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#f59e0b' }}>
-                  {analytics.last_cleared ? new Date(analytics.last_cleared).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No data yet'}
+             
+             {/* New Interactive Clearance Log */}
+             <div className="card" style={{ padding: '15px', backgroundColor: '#f8fafc', flexGrow: 1, display: 'flex', flexDirection: 'column', maxHeight: '250px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '10px' }}>
+                   <h3 style={{ color: '#475569', margin: 0, fontSize: '1rem', textTransform: 'uppercase' }}>Clearance Log</h3>
+                   <select 
+                      value={selectedMonth} 
+                      onChange={(e) => setSelectedMonth(e.target.value)} 
+                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                   >
+                      <option value="">All Time</option>
+                      {uniqueMonths.map(month => {
+                        const [yyyy, mm] = month.split('-');
+                        const monthName = new Date(yyyy, mm - 1).toLocaleString('default', { month: 'short' });
+                        return <option key={month} value={month}>{`${monthName} ${yyyy}`}</option>
+                      })}
+                   </select>
+                </div>
+                <div style={{ overflowY: 'auto', flexGrow: 1, paddingRight: '5px' }}>
+                   {filteredHistory.length > 0 ? filteredHistory.map(record => (
+                      <div key={record.id} style={{ padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
+                         <div style={{ fontWeight: 'bold', color: '#1e293b' }}>
+                            {new Date(record.cleaned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(record.cleaned_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                         </div>
+                         <div style={{ color: '#64748b', marginTop: '2px', fontSize: '0.75rem' }}>
+                            Loc: {record.latitude.toFixed(4)}, {record.longitude.toFixed(4)}
+                         </div>
+                      </div>
+                   )) : (
+                      <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px 0' }}>No records found</div>
+                   )}
                 </div>
              </div>
            </div>
